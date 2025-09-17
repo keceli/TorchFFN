@@ -1,0 +1,37 @@
+# Inference configuration for CREMI-style volumes
+# Optimized for production inference
+
+inference:
+  fov_size: [33, 33, 17]
+  center_crop_size: [17, 17, 9]
+  move_delta: [8, 8, 4]
+  move_threshold: 0.5
+  accept_threshold: 0.5
+  stop_threshold: 0.1
+  revisit_delta: 0.1
+  max_voxels: 1000000
+  max_steps: 10000
+  seed_radius: 2.0
+  seed_amplitude: 1.0
+  queue_strategy: "max_prob"
+
+tiling:
+  tile_size: [128, 128, 64]
+  halo_size: [16, 16, 8]
+  overlap: [16, 16, 8]
+  memory_limit_gb: 8.0
+
+seeding:
+  strategy: "grid"  # "grid", "local_maxima", "user_provided"
+  grid_spacing: [32, 32, 16]
+  local_maxima_threshold: 0.7
+  seed_file: null  # Path to seed coordinates file
+
+output:
+  format: "zarr"  # "zarr", "hdf5", "n5", "nifti"
+  compression: "gzip"
+  chunk_size: [64, 64, 32]
+  dtype: "uint32"
+
+device: "cuda"
+batch_size: 1

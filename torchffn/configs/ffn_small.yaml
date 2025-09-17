@@ -1,0 +1,77 @@
+# Small FFN configuration for testing and quick experiments
+# Suitable for CPU/GPU smoke tests on synthetic data
+
+model:
+  input_channels: 3  # raw + mask + seed
+  stem_channels: 16
+  num_blocks: 4
+  block_channels: [16, 32]
+  kernel_size: 3
+  center_crop_size: 9
+  use_dilation: false
+  dropout: 0.0
+
+training:
+  batch_size: 2
+  num_epochs: 10
+  learning_rate: 1e-3
+  weight_decay: 1e-5
+  optimizer: "adamw"
+  scheduler: "cosine"
+  warmup_epochs: 2
+  gradient_clip_norm: 1.0
+  use_amp: false  # Disable for CPU testing
+  loss_config:
+    type: "ffn"
+    bce_weight: 1.0
+    dice_weight: 0.0
+    pos_weight: 1.0
+    reduction: "mean"
+  log_interval: 5
+  save_interval: 5
+  val_interval: 5
+  save_dir: "runs/ffn_small"
+  device: "cpu"  # Use CPU for testing
+  seed: 42
+
+inference:
+  fov_size: [17, 17, 9]
+  center_crop_size: [9, 9, 5]
+  move_delta: [4, 4, 2]
+  move_threshold: 0.5
+  accept_threshold: 0.5
+  stop_threshold: 0.1
+  revisit_delta: 0.1
+  max_voxels: 10000
+  max_steps: 1000
+  seed_radius: 2.0
+  seed_amplitude: 1.0
+  queue_strategy: "max_prob"
+
+data:
+  volume_size: [32, 32, 16]
+  fov_size: [17, 17, 9]
+  center_crop_size: [9, 9, 5]
+  num_objects_range: [1, 2]
+  object_size_range: [2.0, 4.0]
+  noise_level: 0.1
+  normalize_method: "per_volume"
+  augmentation:
+    random_flip:
+      enabled: true
+      probability: 0.5
+      axes: [0, 1, 2]
+    random_rotation:
+      enabled: true
+      probability: 0.5
+      axes: [[1, 2], [0, 2], [0, 1]]
+    intensity_jitter:
+      enabled: true
+      probability: 0.5
+      brightness_range: [0.8, 1.2]
+      contrast_range: [0.8, 1.2]
+      noise_std: 0.01
+    elastic_deformation:
+      enabled: false  # Disable for small volumes
+    clahe:
+      enabled: false

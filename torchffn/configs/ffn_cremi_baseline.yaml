@@ -1,0 +1,83 @@
+# FFN baseline configuration for CREMI-style EM volumes
+# Realistic EM defaults for production use
+
+model:
+  input_channels: 3  # raw + mask + seed
+  stem_channels: 32
+  num_blocks: 12
+  block_channels: [32, 64, 96]
+  kernel_size: 3
+  center_crop_size: 17
+  use_dilation: false
+  dropout: 0.0
+
+training:
+  batch_size: 4
+  num_epochs: 100
+  learning_rate: 1e-4
+  weight_decay: 1e-5
+  optimizer: "adamw"
+  scheduler: "cosine"
+  warmup_epochs: 10
+  gradient_clip_norm: 1.0
+  use_amp: true
+  loss_config:
+    type: "ffn"
+    bce_weight: 1.0
+    dice_weight: 0.1
+    pos_weight: 1.0
+    reduction: "mean"
+  log_interval: 10
+  save_interval: 1000
+  val_interval: 500
+  save_dir: "runs/ffn_cremi_baseline"
+  device: "cuda"
+  seed: 42
+
+inference:
+  fov_size: [33, 33, 17]
+  center_crop_size: [17, 17, 9]
+  move_delta: [8, 8, 4]
+  move_threshold: 0.5
+  accept_threshold: 0.5
+  stop_threshold: 0.1
+  revisit_delta: 0.1
+  max_voxels: 1000000
+  max_steps: 10000
+  seed_radius: 2.0
+  seed_amplitude: 1.0
+  queue_strategy: "max_prob"
+
+data:
+  volume_size: [256, 256, 128]
+  fov_size: [33, 33, 17]
+  center_crop_size: [17, 17, 9]
+  num_objects_range: [5, 20]
+  object_size_range: [5.0, 15.0]
+  noise_level: 0.05
+  normalize_method: "per_volume"
+  augmentation:
+    random_flip:
+      enabled: true
+      probability: 0.5
+      axes: [0, 1, 2]
+    random_rotation:
+      enabled: true
+      probability: 0.5
+      axes: [[1, 2], [0, 2], [0, 1]]
+    intensity_jitter:
+      enabled: true
+      probability: 0.5
+      brightness_range: [0.8, 1.2]
+      contrast_range: [0.8, 1.2]
+      noise_std: 0.01
+    elastic_deformation:
+      enabled: true
+      probability: 0.3
+      alpha: 1000.0
+      sigma: 50.0
+    clahe:
+      enabled: true
+      probability: 0.2
+      clip_limit: 0.01
+      tile_size: 8
