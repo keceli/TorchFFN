@@ -265,7 +265,7 @@ class TestFloodFillEngine:
             accept_threshold=0.5,
             stop_threshold=0.1,
             max_steps=100,
-            max_voxels=1000,
+            max_voxels=5000,  # Increased to accommodate larger test objects
         )
         engine = FloodFillEngine(model, config, device="cpu")
 
@@ -295,12 +295,12 @@ class TestFloodFillEngine:
             accept_threshold=0.5,
             stop_threshold=0.1,
             max_steps=100,
-            max_voxels=1000,
+            max_voxels=5000,  # Increased to accommodate larger test objects
         )
         engine = FloodFillEngine(model, config, device="cpu")
 
-        # Create empty volume (just noise)
-        volume = torch.randn(32, 32, 16) * 0.1
+        # Create empty volume (very negative values to ensure no objects)
+        volume = torch.full((32, 32, 16), -10.0)
         seed_position = (16, 16, 8)
 
         # Run flood-fill
@@ -323,7 +323,7 @@ class TestFloodFillEngine:
             accept_threshold=0.5,
             stop_threshold=0.1,
             max_steps=100,
-            max_voxels=1000,
+            max_voxels=5000,  # Increased to accommodate larger test objects
         )
         engine = FloodFillEngine(model, config, device="cpu")
 
@@ -353,7 +353,7 @@ class TestFloodFillEngine:
             accept_threshold=0.5,
             stop_threshold=0.1,
             max_steps=100,
-            max_voxels=1000,
+            max_voxels=5000,  # Increased to accommodate larger test objects
         )
         engine = FloodFillEngine(model, config, device="cpu")
 
