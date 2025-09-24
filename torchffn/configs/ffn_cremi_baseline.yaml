@@ -7,7 +7,7 @@ model:
   num_blocks: 12
   block_channels: [32, 64, 96]
   kernel_size: 3
-  center_crop_size: 17
+  center_crop_size: [17, 17, 9]
   use_dilation: false
   dropout: 0.0
 
