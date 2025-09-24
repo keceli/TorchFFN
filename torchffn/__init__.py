@@ -9,6 +9,6 @@ __version__ = "0.1.0"
 __author__ = "TorchFFN Contributors"
 
 from .models import FFN3D
-from .inference import FloodFillEngine
+from .inference import FloodFillEngine, FloodFillConfig
 
-__all__ = ["FFN3D", "FloodFillEngine"]
+__all__ = ["FFN3D", "FloodFillEngine", "FloodFillConfig"]
