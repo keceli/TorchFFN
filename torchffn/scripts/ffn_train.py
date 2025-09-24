@@ -195,9 +195,18 @@ def main():
     print(f"Data loader created with batch size {dataloader.batch_size}")
     
     # Create training configuration
+    training_config_dict = config.get('training', {}).copy()
+    
+    # Override device if CUDA is not available
+    if args.device:
+        training_config_dict['device'] = args.device
+    elif training_config_dict.get('device', 'cuda') == 'cuda' and not torch.cuda.is_available():
+        print("Warning: CUDA not available, falling back to CPU")
+        training_config_dict['device'] = 'cpu'
+    
     training_config = TrainingConfig(
         model_config=config.get('model', {}),
-        **config.get('training', {})
+        **training_config_dict
     )
     
     # Create training loop
