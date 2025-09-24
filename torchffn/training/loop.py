@@ -16,6 +16,7 @@ import torch.optim as optim
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 import yaml
+import torch.nn.functional as F
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -32,6 +33,36 @@ except ImportError:
             pass
 
 from .losses import create_loss_function
+
+
+def compute_accuracy(logits: torch.Tensor, targets: torch.Tensor, threshold: float = 0.5) -> float:
+    """Compute accuracy for binary segmentation."""
+    predictions = torch.sigmoid(logits) > threshold
+    correct = (predictions == targets).float()
+    return correct.mean().item()
+
+
+def compute_f1_score(logits: torch.Tensor, targets: torch.Tensor, threshold: float = 0.5) -> float:
+    """Compute F1 score for binary segmentation."""
+    predictions = torch.sigmoid(logits) > threshold
+    
+    # Convert to binary
+    pred_binary = predictions.float()
+    target_binary = targets.float()
+    
+    # Compute true positives, false positives, false negatives
+    tp = (pred_binary * target_binary).sum()
+    fp = (pred_binary * (1 - target_binary)).sum()
+    fn = ((1 - pred_binary) * target_binary).sum()
+    
+    # Compute precision and recall
+    precision = tp / (tp + fp + 1e-8)
+    recall = tp / (tp + fn + 1e-8)
+    
+    # Compute F1 score
+    f1 = 2 * (precision * recall) / (precision + recall + 1e-8)
+    
+    return f1.item()
 
 
 class TrainingConfig:
@@ -226,6 +257,8 @@ class TrainingLoop:
         # Training metrics
         self.train_metrics = {
             'loss': 0.0,
+            'accuracy': 0.0,
+            'f1_score': 0.0,
             'lr': 0.0,
             'epoch': 0,
             'step': 0,
@@ -233,6 +266,8 @@ class TrainingLoop:
         
         self.val_metrics = {
             'loss': 0.0,
+            'accuracy': 0.0,
+            'f1_score': 0.0,
             'epoch': 0,
         }
     
@@ -244,37 +279,39 @@ class TrainingLoop:
         
         for epoch in range(self.start_epoch, self.config.num_epochs):
             # Train for one epoch
-            train_loss = self._train_epoch(epoch)
+            train_metrics = self._train_epoch(epoch)
             
             # Validate
             if self.val_loader is not None and (epoch + 1) % self.config.val_interval == 0:
-                val_loss = self._validate_epoch(epoch)
-                self.val_metrics['loss'] = val_loss
+                val_metrics = self._validate_epoch(epoch)
+                self.val_metrics.update(val_metrics)
                 self.val_metrics['epoch'] = epoch
             
             # Update learning rate
             if self.scheduler is not None:
                 if isinstance(self.scheduler, optim.lr_scheduler.ReduceLROnPlateau):
-                    self.scheduler.step(train_loss)
+                    self.scheduler.step(train_metrics['loss'])
                 else:
                     self.scheduler.step()
             
             # Log epoch metrics
-            self._log_epoch_metrics(epoch, train_loss)
+            self._log_epoch_metrics(epoch, train_metrics)
             
             # Save checkpoint
             if (epoch + 1) % self.config.save_interval == 0:
-                self._save_checkpoint(epoch, train_loss)
+                self._save_checkpoint(epoch, train_metrics['loss'])
         
         # Save final checkpoint
-        self._save_checkpoint(self.config.num_epochs - 1, train_loss, is_final=True)
+        self._save_checkpoint(self.config.num_epochs - 1, train_metrics['loss'], is_final=True)
         
         print("Training completed!")
     
-    def _train_epoch(self, epoch: int) -> float:
+    def _train_epoch(self, epoch: int) -> Dict[str, float]:
         """Train for one epoch."""
         self.model.train()
         total_loss = 0.0
+        total_accuracy = 0.0
+        total_f1 = 0.0
         num_batches = len(self.train_loader)
         
         for batch_idx, batch in enumerate(self.train_loader):
@@ -319,26 +356,41 @@ class TrainingLoop:
                 
                 self.optimizer.step()
             
+            # Compute metrics
+            with torch.no_grad():
+                accuracy = compute_accuracy(logits, target)
+                f1 = compute_f1_score(logits, target)
+            
             # Update metrics
             total_loss += loss.item()
+            total_accuracy += accuracy
+            total_f1 += f1
             self.global_step += 1
             
             # Log batch metrics
             if batch_idx % self.config.log_interval == 0:
                 current_lr = self.optimizer.param_groups[0]['lr']
                 print(f"Epoch {epoch}, Batch {batch_idx}/{num_batches}, "
-                      f"Loss: {loss.item():.6f}, LR: {current_lr:.2e}")
+                      f"Loss: {loss.item():.6f}, Acc: {accuracy:.4f}, F1: {f1:.4f}, LR: {current_lr:.2e}")
                 
                 # Log to TensorBoard
                 self.writer.add_scalar('train/loss', loss.item(), self.global_step)
+                self.writer.add_scalar('train/accuracy', accuracy, self.global_step)
+                self.writer.add_scalar('train/f1_score', f1, self.global_step)
                 self.writer.add_scalar('train/lr', current_lr, self.global_step)
         
-        return total_loss / num_batches
+        return {
+            'loss': total_loss / num_batches,
+            'accuracy': total_accuracy / num_batches,
+            'f1_score': total_f1 / num_batches
+        }
     
-    def _validate_epoch(self, epoch: int) -> float:
+    def _validate_epoch(self, epoch: int) -> Dict[str, float]:
         """Validate for one epoch."""
         self.model.eval()
         total_loss = 0.0
+        total_accuracy = 0.0
+        total_f1 = 0.0
         num_batches = len(self.val_loader)
         
         with torch.no_grad():
@@ -356,30 +408,48 @@ class TrainingLoop:
                     logits = self.model(input_tensor)
                     loss = self.criterion(logits, target)
                 
+                # Compute metrics
+                accuracy = compute_accuracy(logits, target)
+                f1 = compute_f1_score(logits, target)
+                
                 total_loss += loss.item()
+                total_accuracy += accuracy
+                total_f1 += f1
         
         avg_loss = total_loss / num_batches
+        avg_accuracy = total_accuracy / num_batches
+        avg_f1 = total_f1 / num_batches
         
         # Log validation metrics
         self.writer.add_scalar('val/loss', avg_loss, epoch)
+        self.writer.add_scalar('val/accuracy', avg_accuracy, epoch)
+        self.writer.add_scalar('val/f1_score', avg_f1, epoch)
         
-        print(f"Validation - Epoch {epoch}, Loss: {avg_loss:.6f}")
+        print(f"Validation - Epoch {epoch}, Loss: {avg_loss:.6f}, Acc: {avg_accuracy:.4f}, F1: {avg_f1:.4f}")
         
-        return avg_loss
+        return {
+            'loss': avg_loss,
+            'accuracy': avg_accuracy,
+            'f1_score': avg_f1
+        }
     
-    def _log_epoch_metrics(self, epoch: int, train_loss: float):
+    def _log_epoch_metrics(self, epoch: int, train_metrics: Dict[str, float]):
         """Log epoch-level metrics."""
         current_lr = self.optimizer.param_groups[0]['lr']
         
         self.train_metrics.update({
-            'loss': train_loss,
+            'loss': train_metrics['loss'],
+            'accuracy': train_metrics['accuracy'],
+            'f1_score': train_metrics['f1_score'],
             'lr': current_lr,
             'epoch': epoch,
             'step': self.global_step,
         })
         
         # Log to TensorBoard
-        self.writer.add_scalar('epoch/train_loss', train_loss, epoch)
+        self.writer.add_scalar('epoch/train_loss', train_metrics['loss'], epoch)
+        self.writer.add_scalar('epoch/train_accuracy', train_metrics['accuracy'], epoch)
+        self.writer.add_scalar('epoch/train_f1_score', train_metrics['f1_score'], epoch)
         self.writer.add_scalar('epoch/lr', current_lr, epoch)
     
     def _save_checkpoint(self, epoch: int, loss: float, is_final: bool = False):
