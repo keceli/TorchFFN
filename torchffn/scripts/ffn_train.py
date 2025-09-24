@@ -195,7 +195,10 @@ def main():
     print(f"Data loader created with batch size {dataloader.batch_size}")
     
     # Create training configuration
-    training_config = TrainingConfig(**config.get('training', {}))
+    training_config = TrainingConfig(
+        model_config=config.get('model', {}),
+        **config.get('training', {})
+    )
     
     # Create training loop
     print("Creating training loop...")
