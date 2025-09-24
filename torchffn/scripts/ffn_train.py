@@ -197,6 +197,12 @@ def main():
     # Create training configuration
     training_config_dict = config.get('training', {}).copy()
     
+    # Convert string values to appropriate types
+    if 'learning_rate' in training_config_dict:
+        training_config_dict['learning_rate'] = float(training_config_dict['learning_rate'])
+    if 'weight_decay' in training_config_dict:
+        training_config_dict['weight_decay'] = float(training_config_dict['weight_decay'])
+    
     # Override device if CUDA is not available
     if args.device:
         training_config_dict['device'] = args.device
