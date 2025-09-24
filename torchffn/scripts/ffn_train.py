@@ -17,7 +17,7 @@ import yaml
 # Add torchffn to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from torchffn.models import FFN3D
+from torchffn.models import FFN3D, create_ffn3d_baseline, create_ffn3d_small
 from torchffn.data import SyntheticDataset, EMVolumeDataset
 from torchffn.training import TrainingLoop, TrainingConfig
 from torch.utils.data import DataLoader
@@ -77,12 +77,12 @@ def load_config(config_path: str) -> dict:
 def create_model(config: dict, model_type: str) -> FFN3D:
     """Create FFN model based on configuration and type."""
     if model_type == "baseline":
-        return FFN3D.create_ffn3d_baseline(
+        return create_ffn3d_baseline(
             input_channels=config['model']['input_channels'],
             center_crop_size=config['model']['center_crop_size']
         )
     elif model_type == "small":
-        return FFN3D.create_ffn3d_small(
+        return create_ffn3d_small(
             input_channels=config['model']['input_channels'],
             center_crop_size=config['model']['center_crop_size']
         )
