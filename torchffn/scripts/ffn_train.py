@@ -92,7 +92,17 @@ def create_model(config: dict, model_type: str) -> FFN3D:
 
 def create_dataset(config: dict, args) -> torch.utils.data.Dataset:
     """Create dataset based on configuration and arguments."""
-    if args.synthetic:
+    # Check if we should use synthetic data
+    use_synthetic = args.synthetic
+    
+    if not use_synthetic:
+        # Check if real data directory exists and has data
+        data_dir = args.data_dir or config.get('data', {}).get('data_dir', './data')
+        if not os.path.exists(data_dir) or not os.listdir(data_dir):
+            print(f"Warning: No real data found in {data_dir}, falling back to synthetic data")
+            use_synthetic = True
+    
+    if use_synthetic:
         # Use synthetic dataset
         dataset_config = config.get('data', {})
         return SyntheticDataset(
